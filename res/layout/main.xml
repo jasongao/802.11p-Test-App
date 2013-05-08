@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:orientation="vertical" >
+
+    <ListView
+        android:id="@+id/msgList"
+        android:layout_width="fill_parent"
+        android:layout_height="0dip"
+        android:layout_weight="1"
+        android:stackFromBottom="true"
+        android:transcriptMode="alwaysScroll" >
+    </ListView>
+
+    <LinearLayout
+        android:id="@+id/ButtonsLayout"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal" >
+
+        <Button
+            android:id="@+id/wifi_button"
+            android:layout_width="120dip"
+            android:layout_height="match_parent"
+            android:text="WiFi" >
+        </Button>
+
+        <Button
+            android:id="@+id/download_button"
+            android:layout_width="120dip"
+            android:layout_height="match_parent"
+            android:text="Down 710" >
+        </Button>
+
+        <Button
+            android:id="@+id/upload_button"
+            android:layout_width="120dip"
+            android:layout_height="match_parent"
+            android:text="Up 710" >
+        </Button>
+    </LinearLayout>
+    
+    <LinearLayout
+        android:id="@+id/ButtonsLayout"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal" >
+
+        <Button
+            android:id="@+id/download_button_2"
+            android:layout_width="120dip"
+            android:layout_height="match_parent"
+            android:text="Down 12919" >
+        </Button>
+
+        <Button
+            android:id="@+id/upload_button_2"
+            android:layout_width="120dip"
+            android:layout_height="match_parent"
+            android:text="Up 12919" >
+        </Button>
+    </LinearLayout>
+
+</LinearLayout>
