@@ -1,22 +1,18 @@
 package edu.mit.csail.jasongao.sonar;
 
-import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.io.PrintWriter;
-import java.util.Random;
-
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.DefaultHttpClient;
 
 import android.app.Activity;
 import android.content.Context;
 import android.location.LocationManager;
-import android.os.AsyncTask;
+import android.net.wifi.WifiManager;
+import android.net.wifi.WifiManager.MulticastLock;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -33,25 +29,19 @@ import android.widget.ListView;
 public class SonarActivity extends Activity {
 	final static private String TAG = "SonarActivity";
 
+	private static final String BINPATH = "/data/local/bin/";
+	public static final String TCPDUMP = "tcpdump";
+	private static CaptureThread tcpdumpCmd = null;
+
 	// Attributes
-	private long nodeId = -1;
-
-	// Wifi Test
-	private int testLength = 4000;
-	private long packetsSent = 0;
 	private long packetsReceived = 0;
-	private long packetsToStopAt = 100;
-	private long timeStarted;
-	private long timeStopped;
-	private long messagesEveryPackets = 100;
+	private long packetsSent = 0;
 
-	// Mobile data test
-	int gs = 1000; // initial upload size
-	int ds = 1000; // initial download size
+	// Test packet length
+	private int packetLength = 130;
 
 	// UI
-	Button wifi_button, download_button, upload_button, download_button_2,
-			upload_button_2;
+	Button send_button;
 	ListView msgList;
 	ArrayAdapter<String> receivedMessages;
 
@@ -65,119 +55,12 @@ public class SonarActivity extends Activity {
 	// Android components
 	PowerManager.WakeLock wakeLock = null;
 	LocationManager locManager;
-
-	private boolean recurringPingEnabled = false;
-	private boolean recurringPingNoDelay = false;
-	private long recurringPingPeriod = 7L * testLength / 900 * packetsToStopAt
-			/ 1000;
-
-	// Keep sending a ping packet
-	private Runnable recurringPingR = new Runnable() {
-		@Override
-		public void run() {
-			sendPing();
-			if (packetsSent >= packetsToStopAt) {
-				stopRecurringPing();
-			}
-			if (recurringPingEnabled && recurringPingNoDelay) {
-				myHandler.post(recurringPingR);
-			} else if (recurringPingEnabled) {
-				myHandler.postDelayed(recurringPingR, recurringPingPeriod);
-			}
-		}
-	};
-
-	private class UploadFilesTask extends AsyncTask<Integer, Integer, Long> {
-		protected Long doInBackground(Integer... sizes) {
-
-			for (int i = 0; i < sizes.length; i++) {
-				int size = sizes[i];
-				String path = "http://128.30.87.195:60000/upload/";
-
-				DefaultHttpClient httpclient = new DefaultHttpClient();
-				HttpPost httpost = new HttpPost(path);
-
-				byte[] r = new byte[size];
-				Random rand = new Random();
-				rand.nextBytes(r);
-				String s = new String(r);
-
-				try {
-					StringEntity se = new StringEntity(s);
-					httpost.setEntity(se);
-					httpost.setHeader("Accept", "application/json");
-					httpost.setHeader("Content-type", "application/json");
-
-					HttpResponse response = httpclient.execute(httpost);
-
-					InputStreamReader isr = new InputStreamReader(response
-							.getEntity().getContent());
-					BufferedReader br = new BufferedReader(isr);
-					if (br.readLine().equals("POST OK")) {
-						publishProgress(size);
-					} else {
-						publishProgress(-1);
-					}
-
-				} catch (Exception e) {
-					e.printStackTrace();
-					publishProgress(-1);
-				}
-
-			}
-
-			return (long) sizes.length;
-		}
-
-		protected void onProgressUpdate(Integer... progress) {
-			logMsg(String.format("Uploaded %d bytes over mobile data.",
-					progress));
-		}
-
-		protected void onPostExecute(Long result) {
-			logMsg(String.format("Finished %d uploads.", result));
-		}
-	}
-
-	private class DownloadFilesTask extends AsyncTask<Integer, Long, Long> {
-		protected Long doInBackground(Integer... sizes) {
-
-			for (int i = 0; i < sizes.length; i++) {
-				int size = sizes[i];
-				String path = String.format(
-						"http://128.30.87.195:60000/static/%d.bin", size);
-
-				DefaultHttpClient httpclient = new DefaultHttpClient();
-				HttpGet httpget = new HttpGet(path);
-
-				try {
-					HttpResponse response = httpclient.execute(httpget);
-					long downloadLength = response.getEntity()
-							.getContentLength();
-					publishProgress(downloadLength);
-				} catch (Exception e) {
-					e.printStackTrace();
-					publishProgress(-1L);
-				}
-
-			}
-
-			return (long) sizes.length;
-		}
-
-		protected void onProgressUpdate(Long... progress) {
-			logMsg(String.format("Downloaded %d bytes over mobile data.",
-					progress));
-		}
-
-		protected void onPostExecute(Long result) {
-			logMsg(String.format("Finished %d uploads.", result));
-		}
-	}
+	MulticastLock mcLock = null;
 
 	// Handler message types
 	protected final static int LOG = 3;
 	protected final static int PACKET_RECV = 4;
+	protected final static int CAPTURE_RECV = 5;
 
 	/** Handle messages from various components */
 	private final Handler myHandler = new Handler() {
@@ -185,13 +68,15 @@ public class SonarActivity extends Activity {
 		public void handleMessage(Message msg) {
 			switch (msg.what) {
 			case PACKET_RECV:
+				byte[] pingBytes = (byte[]) msg.obj;
+				logMsg(String.format("Received packet %d of size %d, data: %s",
+						packetsReceived, pingBytes.length,
+						bytesToHex(pingBytes)));
 				packetsReceived++;
-				if (packetsReceived % messagesEveryPackets == 0) {
-					logMsg(String.format("Received packet %d", packetsReceived));
-				}
-				// byte[] pingBytes = (byte[]) msg.obj;
-				// logMsg(String.format("Received packet %d of size %d",
-				// packetsReceived, pingBytes.length));
+				break;
+			case CAPTURE_RECV:
+				String capLine = (String) msg.obj;
+				logMsg(capLine);
 				break;
 			case LOG: // Write a string to log file and UI log display
 				logMsg((String) msg.obj);
@@ -210,19 +95,50 @@ public class SonarActivity extends Activity {
 		}
 	}
 
-	/** Send ping */
-	private void sendPing() {
-		byte[] data = new byte[testLength];
+	final protected static char[] hexArray = { '0', '1', '2', '3', '4', '5',
+			'6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+	public static String bytesToHex(byte[] bytes) {
+		char[] hexChars = new char[bytes.length * 2];
+		int v;
+		for (int j = 0; j < bytes.length; j++) {
+			v = bytes[j] & 0xFF;
+			hexChars[j * 2] = hexArray[v >>> 4];
+			hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+		}
+		return new String(hexChars);
+	}
+
+	/** Send test packet */
+	private void sendPacket() {
+		// Add some RRR packet header and data structures
+		byte[] zero_pad = new byte[] { (byte) 0x00, (byte) 0x00 };
+		byte[] rrr_header = new byte[] { (byte) 0x08, (byte) 0x08, (byte) 0x00,
+				(byte) 0x01 };
+		byte[] rrr_data = new byte[4]; // TODO populate
+
+		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		try {
-			netThread.sendData(data);
-			packetsSent++;
-			if (packetsSent % messagesEveryPackets == 0) {
-				logMsg(String.format("Sent packet %d of size %d bytes",
-						packetsSent, testLength));
+			bos.write(zero_pad);
+			for (int i = 0; i < 16; i++) {
+				bos.write(rrr_header);
+				bos.write(rrr_data);
 			}
+		} catch (IOException e1) {
+			logMsg("Error creating RRR packet.");
+			e1.printStackTrace();
+		}
+
+		byte data[] = bos.toByteArray();
+
+		try {
+			netThread.broadcast(data);
+			logMsg(String.format("Sent packet %d of size %d bytes",
+					packetsSent, packetLength));
+			packetsSent++;
 		} catch (IOException e) {
 			logMsg(String.format("Error sending packet %d of size %d bytes",
-					packetsSent, testLength));
+					packetsSent, packetLength));
 			e.printStackTrace();
 		}
 	}
@@ -233,20 +149,8 @@ public class SonarActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 
-		wifi_button = (Button) findViewById(R.id.wifi_button);
-		wifi_button.setOnClickListener(wifi_button_listener);
-
-		download_button = (Button) findViewById(R.id.download_button);
-		download_button.setOnClickListener(download_button_listener);
-
-		upload_button = (Button) findViewById(R.id.upload_button);
-		upload_button.setOnClickListener(upload_button_listener);
-
-		download_button_2 = (Button) findViewById(R.id.download_button_2);
-		download_button_2.setOnClickListener(download_button_listener_2);
-
-		upload_button_2 = (Button) findViewById(R.id.upload_button_2);
-		upload_button_2.setOnClickListener(upload_button_listener_2);
+		send_button = (Button) findViewById(R.id.send_button);
+		send_button.setOnClickListener(mClicked);
 
 		msgList = (ListView) findViewById(R.id.msgList);
 		receivedMessages = new ArrayAdapter<String>(this, R.layout.message);
@@ -282,8 +186,21 @@ public class SonarActivity extends Activity {
 		wakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK
 				| PowerManager.ON_AFTER_RELEASE, TAG);
 
+		// Get a multicast lock???
+		WifiManager wifi = (WifiManager) this
+				.getSystemService(Context.WIFI_SERVICE);
+		mcLock = wifi.createMulticastLock("edu.mit.csail.jasongao.sonar");
+
 		// Location / GPS
 		locManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+
+		// Extract binaries
+		File localTcpdump = getFileStreamPath(TCPDUMP);
+		if (localTcpdump.exists()) {
+			logMsg("binary already exists at " + getFileStreamPath(TCPDUMP));
+		} else {
+			extractBinary(R.raw.tcpdump, TCPDUMP);
+		}
 
 		// Start the network thread and ensure it's running
 		netThread = new NetworkThread(myHandler);
@@ -292,20 +209,16 @@ public class SonarActivity extends Activity {
 			return; // quit out
 		}
 		netThread.start();
-		if (netThread.getLocalAddress() == null) {
+		if (netThread.localAddress == null) {
 			Log.e(TAG, "Couldn't get my IP address.");
 			return; // quit out
 		}
 
-		Bundle extras = getIntent().getExtras();
-		if (extras != null && extras.containsKey("id")) {
-			nodeId = Long.valueOf(extras.getString("id"));
-		} else {
-			nodeId = 1000 * netThread.getLocalAddress().getAddress()[2]
-					+ netThread.getLocalAddress().getAddress()[3];
-		}
+		logMsg("localAddress=" + netThread.localAddress.getHostAddress());
+		logMsg("broadcastAddress="
+				+ netThread.broadcastAddress.getHostAddress());
 
-		logMsg("nodeId=" + nodeId);
+		startTcpdump();
 	}
 
 	/** Always called after onStart, even if activity is not paused. */
@@ -313,18 +226,22 @@ public class SonarActivity extends Activity {
 	protected void onResume() {
 		super.onResume();
 		wakeLock.acquire();
+		mcLock.acquire();
 	}
 
 	@Override
 	protected void onPause() {
-		stopRecurringPing();
-		wakeLock.release();
+		// stop recurring runnables
+		// TODO
 
+		mcLock.release();
+		wakeLock.release();
 		super.onPause();
 	}
 
 	@Override
 	public void onDestroy() {
+		stopTcpdump();
 		netThread.closeSocket();
 
 		logWriter.flush();
@@ -333,96 +250,95 @@ public class SonarActivity extends Activity {
 		super.onDestroy();
 	}
 
-	private void startRecurringPing() {
-		recurringPingEnabled = true;
-		wifi_button.setText("Stop WiFi");
-		packetsSent = 0;
-		timeStarted = System.currentTimeMillis();
-		logMsg("Starting WiFi benchmark at " + timeStarted);
-		myHandler.post(recurringPingR);
+	private void startTcpdump() {
+		try {
+			tcpdumpCmd = new CaptureThread(getFileStreamPath(TCPDUMP)
+					.toString()
+					+ " -neql -tt -xx -s 256 -i "
+					+ NetworkThread.IFACE, myHandler);
+			tcpdumpCmd.start();
+		} catch (IOException e) {
+			e.printStackTrace();
+			Log.e(TAG, "error starting tcpdump", e);
+		}
 	}
 
-	private void stopRecurringPing() {
-		recurringPingEnabled = false;
-		wifi_button.setText("Start WiFi");
-		myHandler.removeCallbacks(recurringPingR);
-		timeStopped = System.currentTimeMillis();
-		logMsg(String.format("Sent %d packets in %d ms", packetsSent,
-				timeStopped - timeStarted));
-		testLength *= 2;
-	}
-
-	private OnClickListener wifi_button_listener = new OnClickListener() {
-		public void onClick(View v) {
-			if (recurringPingEnabled) {
-				stopRecurringPing();
-			} else {
-				startRecurringPing();
+	private void stopTcpdump() {
+		if (tcpdumpCmd != null) {
+			tcpdumpCmd.interrupt();
+			tcpdumpCmd = null;
+			try {
+				CaptureThread ec = new CaptureThread("killall " + TCPDUMP);
+				ec.start();
+				ec.join();
+			} catch (IOException e) {
+				e.printStackTrace();
+				Log.e(TAG, "error killing tcpdump", e);
+			} catch (InterruptedException e) {
+				// swallow error
 			}
 		}
-	};
+	}
 
-	private OnClickListener upload_button_listener = new OnClickListener() {
-		public void onClick(View v) {
-			int s = 710;
-			new UploadFilesTask().execute(s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s);
+	private void extractBinary(int id, String fileName) {
+		/*
+		 * extracts the binary from the apk and makes it executable. If any step
+		 * fails and the function continues to run everything should be cleaned
+		 * up
+		 */
+		final InputStream arpBin = getResources().openRawResource(id);
+		FileOutputStream out = null;
+		boolean success = true;
+		final byte[] buff = new byte[4096];
+		try {
+			out = openFileOutput(fileName, Context.MODE_PRIVATE);
+			while (arpBin.read(buff) > 0)
+				out.write(buff);
+		} catch (FileNotFoundException e) {
+			Log.e(TAG, fileName + "wasn't found", e);
+			success = false;
+		} catch (IOException e) {
+			Log.e(TAG, "couldn't extract executable", e);
+			success = false;
+		} finally {
+			try {
+				out.close();
+			} catch (IOException e) {
+				// swallow error
+			}
 		}
-	};
-
-	private OnClickListener download_button_listener = new OnClickListener() {
-		public void onClick(View v) {
-			int s = 710;
-			new DownloadFilesTask().execute(s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s);
+		try {
+			CaptureThread ec = new CaptureThread("chmod 770 "
+					+ getFileStreamPath(fileName).toString());
+			ec.start();
+			ec.join();
+		} catch (IOException e) {
+			Log.e(TAG, "error running chmod on local file", e);
+			success = false;
+		} catch (InterruptedException e) {
+			Log.i(TAG, "thread running chmod was interrupted");
+			success = false;
+		} finally {
+			if (!success) {
+				getFileStreamPath(fileName).delete();
+			} else {
+				logMsg("successfully extracted executable to "
+						+ getFileStreamPath(fileName));
+			}
 		}
-	};
+	}
 
-	private OnClickListener upload_button_listener_2 = new OnClickListener() {
+	// Buttons
+	private final OnClickListener mClicked = new OnClickListener() {
 		public void onClick(View v) {
-			int s = 12919;
-			new UploadFilesTask().execute(s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s);
-		}
-	};
+			switch (v.getId()) {
 
-	private OnClickListener download_button_listener_2 = new OnClickListener() {
-		public void onClick(View v) {
-			int s = 12919;
-			new DownloadFilesTask().execute(s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s, s,
-					s, s, s, s, s, s, s, s);
-		}
-	};
-
-	private OnClickListener upload_button_listener_auto = new OnClickListener() {
-		public void onClick(View v) {
-			new UploadFilesTask().execute(gs, gs, gs, gs, gs, gs, gs, gs, gs,
-					gs);
-			gs *= 4;
-		}
-	};
-
-	private OnClickListener download_button_listener_auto = new OnClickListener() {
-		public void onClick(View v) {
-			new DownloadFilesTask().execute(ds, ds, ds, ds, ds, ds, ds, ds, ds,
-					ds);
-			ds *= 4;
+			case R.id.send_button:
+				sendPacket();
+				break;
+			default:
+				break;
+			}
 		}
 	};
 }

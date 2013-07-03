@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InterfaceAddress;
 import java.net.NetworkInterface;
 import java.util.Enumeration;
 
@@ -16,32 +17,41 @@ public class NetworkThread extends Thread {
 	private Handler muxHandler;
 
 	// UDP over IPv4 networking
-	private static final int MAX_PACKET_SIZE = 16384; // bytes
-	private static final String IFACE = "eth0";
-	private static final String BCAST_ADDR = "192.168.42.255";
-	private static final int PORT = 4200;
+	private static final int MAX_PACKET_SIZE = 130;
+	public static final String IFACE = "eth0";
 	private DatagramSocket mySocket;
 	private boolean socketOK = true;
-	private InetAddress myBcastIPAddress;
-	private InetAddress myIPAddress;
+	public InetAddress localAddress;
+	public InetAddress broadcastAddress;
+	private static final int DEST_PORT = 32760;
+	private static byte[] receiveDataBuffer = null;
+
+	private static final String LOCAL_ADDR = "192.168.42.2";
 
 	/** NetworkThread constructor */
 	public NetworkThread(Handler h) {
 		muxHandler = h;
 
+		// bring up interface
+		SystemHelper.execSUCommand("ifconfig " + IFACE + " " + LOCAL_ADDR
+				+ " netmask 255.255.255.0 up", false);
+
+		System.setProperty("java.net.preferIPv4Stack", "true");
+
 		// Determine local IP address
-		myIPAddress = null;
+		localAddress = null;
 		try {
 			NetworkInterface intf = NetworkInterface.getByName(IFACE);
 			for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr
 					.hasMoreElements();) {
 				InetAddress inetAddress = enumIpAddr.nextElement();
 				if (!inetAddress.isLoopbackAddress()) {
-					myIPAddress = inetAddress;
+					localAddress = inetAddress;
 				}
 			}
-			if (myIPAddress == null)
-				throw new Exception("no addresses bound to eth0");
+			if (localAddress == null) {
+				throw new Exception("no addresses bound to " + IFACE);
+			}
 		} catch (Exception e) {
 			Log.e(TAG, "can't determine local IP address: " + e.toString());
 			return;
@@ -49,15 +59,23 @@ public class NetworkThread extends Thread {
 
 		// Determine broadcast IP address
 		try {
-			myBcastIPAddress = getBroadcastAddress();
+			NetworkInterface nif = NetworkInterface
+					.getByInetAddress(localAddress);
+			for (InterfaceAddress addr : nif.getInterfaceAddresses()) {
+				broadcastAddress = addr.getBroadcast();
+			}
+			if (broadcastAddress == null) {
+				throw new Exception("no broadcast address bound to " + IFACE);
+			}
 		} catch (Exception e) {
-			Log.e(TAG, "Cannot get my broadcast IP address" + e.toString());
+			Log.e(TAG, "Cannot determine broadcast IP address: " + e.toString());
 			return;
 		}
 
 		openSocket();
 
-		Log.i(TAG, "started, local IP address:" + myIPAddress);
+		Log.i(TAG, "started, local: " + localAddress + ", broadcast: "
+				+ broadcastAddress);
 	}
 
 	/** Close the socket before exiting the application */
@@ -72,7 +90,7 @@ public class NetworkThread extends Thread {
 			mySocket.close();
 
 		try {
-			mySocket = new DatagramSocket(PORT);
+			mySocket = new DatagramSocket(DEST_PORT);
 			mySocket.setBroadcast(true);
 
 			Log.i(TAG, String.format(
@@ -101,12 +119,12 @@ public class NetworkThread extends Thread {
 	/** Thread's receive loop for UDP packets */
 	@Override
 	public void run() {
-		byte[] receiveData = new byte[MAX_PACKET_SIZE];
-
+		receiveDataBuffer = new byte[MAX_PACKET_SIZE];
+		DatagramPacket dPacket = new DatagramPacket(receiveDataBuffer,
+				receiveDataBuffer.length);
 		while (socketOK) {
-			DatagramPacket dPacket = new DatagramPacket(receiveData,
-					receiveData.length);
 			try {
+				dPacket.setData(receiveDataBuffer);
 				mySocket.receive(dPacket);
 			} catch (IOException e) {
 				Log.e(TAG, "Exception on mySocket.receive: " + e.getMessage());
@@ -115,33 +133,33 @@ public class NetworkThread extends Thread {
 			}
 
 			// filter out our own UDP broadcasts
-			if (dPacket.getAddress().equals(myIPAddress))
+			if (dPacket.getAddress().equals(localAddress))
 				continue;
 
 			// Return received data to caller's handler
 			// Log.i(TAG, "Received UDP payload: " + dPacket.getLength());
 			muxHandler.obtainMessage(SonarActivity.PACKET_RECV,
 					dPacket.getData()).sendToTarget();
-			//muxHandler.obtainMessage(SonarActivity.PACKET_RECV).sendToTarget();
 		} // end while(socketOK)
 
 		Log.i(TAG, "NetworkThread exiting.");
 	} // end run()
 
 	/** Send an UDP packet to the broadcast address */
-	public synchronized void sendData(byte[] sendData) throws IOException {
-		mySocket.send(new DatagramPacket(sendData, sendData.length,
-				myBcastIPAddress, PORT));
+	public synchronized void broadcast(byte[] sendData) throws IOException {
+		send(sendData, broadcastAddress);
 	}
 
-	/** Calculate the broadcast IP we need to send the packet along. */
-	public synchronized InetAddress getBroadcastAddress() throws IOException {
-		//return InetAddress.getByName("192.168.5.255");
-		return InetAddress.getByName(BCAST_ADDR);
+	/** Send an UDP packet to an address */
+	public synchronized void send(byte[] sendData, InetAddress dst)
+			throws IOException {
+		mySocket.send(new DatagramPacket(sendData, sendData.length, dst,
+				DEST_PORT));
 	}
 
-	/** Return our stored local IP address. */
-	public synchronized InetAddress getLocalAddress() {
-		return myIPAddress;
+	/** Send an UDP packet to a hostname or IP address provided as a String */
+	public synchronized void send(byte[] sendData, String host)
+			throws IOException {
+		send(sendData, InetAddress.getByName(host));
 	}
 }

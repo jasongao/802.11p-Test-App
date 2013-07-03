@@ -20,45 +20,10 @@
         android:orientation="horizontal" >
 
         <Button
-            android:id="@+id/wifi_button"
-            android:layout_width="120dip"
+            android:id="@+id/send_button"
+            android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:text="WiFi" >
-        </Button>
-
-        <Button
-            android:id="@+id/download_button"
-            android:layout_width="120dip"
-            android:layout_height="match_parent"
-            android:text="Down 710" >
-        </Button>
-
-        <Button
-            android:id="@+id/upload_button"
-            android:layout_width="120dip"
-            android:layout_height="match_parent"
-            android:text="Up 710" >
-        </Button>
-    </LinearLayout>
-    
-    <LinearLayout
-        android:id="@+id/ButtonsLayout"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal" >
-
-        <Button
-            android:id="@+id/download_button_2"
-            android:layout_width="120dip"
-            android:layout_height="match_parent"
-            android:text="Down 12919" >
-        </Button>
-
-        <Button
-            android:id="@+id/upload_button_2"
-            android:layout_width="120dip"
-            android:layout_height="match_parent"
-            android:text="Up 12919" >
+            android:text="Send RRR Packet" >
         </Button>
     </LinearLayout>
 
