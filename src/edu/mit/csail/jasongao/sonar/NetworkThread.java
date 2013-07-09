@@ -23,7 +23,7 @@ public class NetworkThread extends Thread {
 	private boolean socketOK = true;
 	public InetAddress localAddress;
 	public InetAddress broadcastAddress;
-	private static final int DEST_PORT = 32760;
+	private static final int DEST_PORT = 32768;
 	private static byte[] receiveDataBuffer = null;
 
 	private static final String LOCAL_ADDR = "192.168.42.2";

@@ -115,12 +115,27 @@ public class SonarActivity extends Activity {
 		byte[] zero_pad = new byte[] { (byte) 0x00, (byte) 0x00 };
 		byte[] rrr_header = new byte[] { (byte) 0x08, (byte) 0x08, (byte) 0x00,
 				(byte) 0x01 };
-		byte[] rrr_data = new byte[4]; // TODO populate
+		byte[] rrr_data = new byte[] { (byte) 0x12, (byte) 0x34, (byte) 0x56, (byte) 0x78 }; // TODO populate
 
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		try {
 			bos.write(zero_pad);
-			for (int i = 0; i < 16; i++) {
+			
+			//header 1
+			bos.write(new byte[] { (byte) 0x08, (byte) 0x09, (byte) 0x00,
+					(byte) 0x01 });
+			// data 1
+			bos.write(new byte[] { (byte) 0x00, (byte) 0x00, (byte) 0x00,
+					(byte) 0x30 });
+			
+			//header 2
+			bos.write(new byte[] { (byte) 0x08, (byte) 0x10, (byte) 0x80,
+					(byte) 0x01 });
+			// data 2
+			bos.write(new byte[] { (byte) 0x00, (byte) 0x00, (byte) 0x00,
+					(byte) 0x00 });
+			
+			for (int i = 0; i < 14; i++) {
 				bos.write(rrr_header);
 				bos.write(rrr_data);
 			}
