@@ -25,6 +25,13 @@
             android:layout_height="match_parent"
             android:text="Send RRR Packet" >
         </Button>
+
+        <Button
+            android:id="@+id/repeat_button"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="START loop" />
+
     </LinearLayout>
 
 </LinearLayout>

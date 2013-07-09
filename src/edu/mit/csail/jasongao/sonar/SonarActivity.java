@@ -34,6 +34,7 @@ public class SonarActivity extends Activity {
 	private static CaptureThread tcpdumpCmd = null;
 
 	// Attributes
+	private boolean currentlyRepeating = false;
 	private long packetsReceived = 0;
 	private long packetsSent = 0;
 
@@ -41,7 +42,6 @@ public class SonarActivity extends Activity {
 	private int packetLength = 130;
 
 	// UI
-	Button send_button;
 	ListView msgList;
 	ArrayAdapter<String> receivedMessages;
 
@@ -95,6 +95,22 @@ public class SonarActivity extends Activity {
 		}
 	}
 
+	/** Periodically repeating packet send */
+	private Runnable repeatingPacketR = new Runnable() {
+		public void run() {
+			sendPacket();
+			myHandler.postDelayed(this, 1000);
+		}
+	};
+
+	private void repeatingPacketStart() {
+		myHandler.post(repeatingPacketR);
+	}
+
+	private void repeatingPacketStop() {
+		myHandler.removeCallbacks(repeatingPacketR);
+	}
+
 	final protected static char[] hexArray = { '0', '1', '2', '3', '4', '5',
 			'6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
@@ -115,26 +131,27 @@ public class SonarActivity extends Activity {
 		byte[] zero_pad = new byte[] { (byte) 0x00, (byte) 0x00 };
 		byte[] rrr_header = new byte[] { (byte) 0x08, (byte) 0x08, (byte) 0x00,
 				(byte) 0x01 };
-		byte[] rrr_data = new byte[] { (byte) 0x12, (byte) 0x34, (byte) 0x56, (byte) 0x78 }; // TODO populate
+		byte[] rrr_data = new byte[] { (byte) 0x12, (byte) 0x34, (byte) 0x56,
+				(byte) 0x78 }; // TODO populate
 
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		try {
 			bos.write(zero_pad);
-			
-			//header 1
+
+			// header 1
 			bos.write(new byte[] { (byte) 0x08, (byte) 0x09, (byte) 0x00,
 					(byte) 0x01 });
 			// data 1
 			bos.write(new byte[] { (byte) 0x00, (byte) 0x00, (byte) 0x00,
-					(byte) 0x30 });
-			
-			//header 2
+					(byte) 0xf0 });
+
+			// header 2
 			bos.write(new byte[] { (byte) 0x08, (byte) 0x10, (byte) 0x80,
 					(byte) 0x01 });
 			// data 2
 			bos.write(new byte[] { (byte) 0x00, (byte) 0x00, (byte) 0x00,
 					(byte) 0x00 });
-			
+
 			for (int i = 0; i < 14; i++) {
 				bos.write(rrr_header);
 				bos.write(rrr_data);
@@ -147,10 +164,12 @@ public class SonarActivity extends Activity {
 		byte data[] = bos.toByteArray();
 
 		try {
-			netThread.broadcast(data);
-			logMsg(String.format("Sent packet %d of size %d bytes",
-					packetsSent, packetLength));
-			packetsSent++;
+			for (int i = 0; i < 5; i++) {
+				netThread.broadcast(data);
+				logMsg(String.format("Sent packet %d of size %d bytes",
+						packetsSent, packetLength));
+				packetsSent++;
+			}
 		} catch (IOException e) {
 			logMsg(String.format("Error sending packet %d of size %d bytes",
 					packetsSent, packetLength));
@@ -164,8 +183,11 @@ public class SonarActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 
-		send_button = (Button) findViewById(R.id.send_button);
+		Button send_button = (Button) findViewById(R.id.send_button);
 		send_button.setOnClickListener(mClicked);
+
+		Button repeat_button = (Button) findViewById(R.id.repeat_button);
+		repeat_button.setOnClickListener(mClicked);
 
 		msgList = (ListView) findViewById(R.id.msgList);
 		receivedMessages = new ArrayAdapter<String>(this, R.layout.message);
@@ -256,6 +278,7 @@ public class SonarActivity extends Activity {
 
 	@Override
 	public void onDestroy() {
+		repeatingPacketStop();
 		stopTcpdump();
 		netThread.closeSocket();
 
@@ -351,6 +374,18 @@ public class SonarActivity extends Activity {
 			case R.id.send_button:
 				sendPacket();
 				break;
+			case R.id.repeat_button:
+				if (!currentlyRepeating) {
+					currentlyRepeating = true;
+					repeatingPacketStart();
+					((Button) findViewById(R.id.repeat_button))
+							.setText("STOP loop");
+				} else {
+					currentlyRepeating = false;
+					repeatingPacketStop();
+					((Button) findViewById(R.id.repeat_button))
+							.setText("START loop");
+				}
 			default:
 				break;
 			}
