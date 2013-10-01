@@ -79,12 +79,12 @@ class CaptureThread extends Thread {
 										SonarActivity.CAPTURE_RECV, tmpLine)
 										.sendToTarget();
 							}
-							//capture = line;
+							// capture = line;
 							capture = "";
 						} else {
 							capture += line.substring(9);
 						}
-						
+
 					}
 
 				} catch (IOException e) {

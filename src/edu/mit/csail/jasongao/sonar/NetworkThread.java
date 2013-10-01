@@ -17,8 +17,8 @@ public class NetworkThread extends Thread {
 	private Handler muxHandler;
 
 	// UDP over IPv4 networking
-	private static final int MAX_PACKET_SIZE = 130;
-	public static final String IFACE = "eth0";
+	private static final int MAX_PACKET_SIZE = 1400;
+	public static final String IFACE = "wlan0";
 	private DatagramSocket mySocket;
 	private boolean socketOK = true;
 	public InetAddress localAddress;
