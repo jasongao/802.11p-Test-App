@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 import android.app.Activity;
 import android.content.Context;
@@ -42,7 +41,6 @@ public class SonarActivity extends Activity {
 	private long packetsSent = 0;
 
 	// UI
-	ListView msgList, msgList2;
 	ArrayAdapter<String> receivedMessages, receivedMessages2;
 
 	// Logging to file
@@ -69,7 +67,8 @@ public class SonarActivity extends Activity {
 			switch (msg.what) {
 			case PACKET_RECV:
 				byte[] pingBytes = (byte[]) msg.obj;
-				logMsg2(String.format("Received packet %d of size %d, data: %s",
+				logMsg2(String.format(
+						"Received packet %d of size %d, data: %s",
 						packetsReceived, pingBytes.length,
 						bytesToHex(pingBytes)));
 				packetsReceived++;
@@ -89,12 +88,12 @@ public class SonarActivity extends Activity {
 	public void logMsg(String line) {
 		line = String.format("%d: %s", System.currentTimeMillis(), line);
 		Log.i(TAG, line);
-		receivedMessages2.add((String) line);
+		receivedMessages.add((String) line);
 		if (logWriter != null) {
 			logWriter.println((String) line);
 		}
 	}
-	
+
 	/** Log message and also display on secondary list */
 	public void logMsg2(String line) {
 		line = String.format("%d: %s", System.currentTimeMillis(), line);
@@ -108,8 +107,10 @@ public class SonarActivity extends Activity {
 	/** Periodically repeating packet send */
 	private Runnable repeatingPacketR = new Runnable() {
 		public void run() {
-			sendData();
-			myHandler.postDelayed(this, 1000);
+			myHandler.postDelayed(this, 1);
+			for (int i = 0; i < 10; i++) {
+				sendData();
+			}
 		}
 	};
 
@@ -133,6 +134,91 @@ public class SonarActivity extends Activity {
 			hexChars[j * 2 + 1] = hexArray[v & 0x0F];
 		}
 		return new String(hexChars);
+	}
+
+	/** Send test data */
+	private void sendData() {
+		// Get rate and length from GUI
+		EditText editTextRate = (EditText) findViewById(R.id.editTextRate);
+		EditText editTextLength = (EditText) findViewById(R.id.editTextLength);
+		EditText editTextGain = (EditText) findViewById(R.id.editTextGain);
+		// EditText editTextData = (EditText) findViewById(R.id.editTextData);
+
+		// Parse and validate values from GUI
+		int rate = 1;
+		int length = 4;
+		int gain = 4;
+		try {
+			length = Integer.parseInt(editTextLength.getText().toString());
+			// Restrict length to be between 4 to 4096
+			length = Math.min(4096, Math.max(4, length));
+			// Restrict length to be a multiple of 4
+			length -= (length % 4);
+
+			rate = Integer.parseInt(editTextRate.getText().toString());
+			// Restrict rate to be 1 to 7
+			rate = Math.min(7, Math.max(1, rate));
+
+			gain = Integer.parseInt(editTextGain.getText().toString());
+			// Restrict gain to be 0 to 256
+			rate = Math.min(256, Math.max(0, gain));
+		} catch (NumberFormatException e1) {
+			logMsg("INVALID NUMBER FOR LENGTH, RATE, OR GAIN!");
+			return;
+		}
+
+		// Construct UDP packet containing multiple RRR packets
+		ByteArrayOutputStream bos = new ByteArrayOutputStream();
+		try {
+			// Add RRR packet to set GAIN (4-byte header 080A8001 and 4-byte
+			// value)
+			byte[] gain_pkt = new byte[] { (byte) 0x08, (byte) 0x0A,
+					(byte) 0x80, (byte) 0x01, (byte) 0x00, (byte) 0x00,
+					(byte) 0x00, (byte) gain };
+			bos.write(gain_pkt);
+
+			// Add RRR packet to set RATE (4-byte header 08080001 and 4-byte
+			// value)
+			byte[] rate_pkt = new byte[] { (byte) 0x08, (byte) 0x08,
+					(byte) 0x00, (byte) 0x01, (byte) 0x00, (byte) 0x00,
+					(byte) 0x00, (byte) rate };
+			bos.write(rate_pkt);
+
+			// Add RRR packet to set LENGTH (4-byte header 08088001 and 4-byte
+			// value)
+			ByteBuffer b = ByteBuffer.allocate(4);
+			b.putInt(length);
+			byte[] length_bytes = b.array();
+			byte[] length_pkt = new byte[] { (byte) 0x08, (byte) 0x08,
+					(byte) 0x80, (byte) 0x01, (byte) 0x00, (byte) 0x00,
+					length_bytes[2], length_bytes[3] };
+			bos.write(length_pkt);
+
+			// Dummy data
+			/*
+			 * byte[] data_pattern = new byte[] { (byte) 0x01, (byte) 0x23,
+			 * (byte) 0x45, (byte) 0x67, (byte) 0x89, (byte) 0xAB, (byte) 0xCD,
+			 * (byte) 0xEF }; byte[] data_payload = new byte[512]; for (int i =
+			 * 0; i < data_payload.length; i++) { data_payload[i] =
+			 * data_pattern[i % data_pattern.length]; }
+			 */
+
+			// Add RRR data packet(s), 4 bytes of data each
+			for (int i = 0; i < length / 4; i++) {
+				byte[] data_pkt = new byte[] { (byte) 0x08, (byte) 0x0A,
+						(byte) 0x00, (byte) 0x01, (byte) 0x01, (byte) 0x23,
+						(byte) 0x45, (byte) 0x67,
+				// data_payload[i + 0], data_payload[i + 1],
+				// data_payload[i + 2], data_payload[i + 3]
+				};
+				bos.write(data_pkt);
+			}
+		} catch (IOException e1) {
+			logMsg("Error creating RRR packet.");
+			e1.printStackTrace();
+		}
+
+		sendPacket(bos.toByteArray());
 	}
 
 	/** Send a UDP packet that the FPGA can understand */
@@ -159,81 +245,6 @@ public class SonarActivity extends Activity {
 		return true;
 	}
 
-	/** Send test data */
-	private void sendData() {
-		// Get rate and length from GUI
-		EditText editTextRate = (EditText) findViewById(R.id.editTextRate);
-		EditText editTextLength = (EditText) findViewById(R.id.editTextLength);
-		// EditText editTextData = (EditText) findViewById(R.id.editTextData);
-
-		// Parse and validate rate and length from GUI
-		int rate = 1;
-		int length = 4;
-		try {
-			length = Integer.parseInt(editTextLength.getText().toString());
-			// Restrict length to be between 4 to 4096
-			length = Math.min(4096, Math.max(4, length));
-			// Restrict length to be a multiple of 4
-			length -= (length % 4);
-
-			rate = Integer.parseInt(editTextRate.getText().toString());
-			// Restrict rate to be 1 to 7
-			rate = Math.min(7, Math.max(1, rate));
-		} catch (NumberFormatException e1) {
-			logMsg("INVALID NUMBER FOR LENGTH OR RATE!");
-			return;
-		}
-
-		// Construct UDP packet containing multiple RRR packets
-		ByteArrayOutputStream bos = new ByteArrayOutputStream();
-		try {
-			// Add RRR packet to set rate
-			byte[] rate_pkt = new byte[] { (byte) 0x08, (byte) 0x08,
-					(byte) 0x00, (byte) 0x01, (byte) 0x00, (byte) 0x00,
-					(byte) 0x00, (byte) rate };
-			bos.write(rate_pkt);
-
-			// Add RRR packet to set length
-			ByteBuffer b = ByteBuffer.allocate(4);
-			b.putInt(length);
-			byte[] length_bytes = b.array();
-			byte[] length_pkt = new byte[] { (byte) 0x08, (byte) 0x08,
-					(byte) 0x80, (byte) 0x01, (byte) 0x00, (byte) 0x00,
-					length_bytes[2], length_bytes[3] };
-			bos.write(length_pkt);
-
-			// Dummy data
-			/*
-			byte[] data_pattern = new byte[] { (byte) 0x01, (byte) 0x23,
-					(byte) 0x45, (byte) 0x67, (byte) 0x89, (byte) 0xAB,
-					(byte) 0xCD, (byte) 0xEF };
-			byte[] data_payload = new byte[512];
-			for (int i = 0; i < data_payload.length; i++) {
-				data_payload[i] = data_pattern[i % data_pattern.length];
-			}*/
-
-			// Add RRR data packet(s), 4 bytes of data each
-			for (int i = 0; i < length / 4; i++) {
-				byte[] data_pkt = new byte[] {
-						(byte) 0x08, (byte) 0x0A,
-						(byte) 0x00, (byte) 0x01,
-						(byte) 0x01, (byte) 0x23, 
-						(byte) 0x45, (byte) 0x67,
-						//data_payload[i + 0], data_payload[i + 1],
-						//data_payload[i + 2], data_payload[i + 3]
-				};
-				bos.write(data_pkt);
-			}
-		} catch (IOException e1) {
-			logMsg("Error creating RRR packet.");
-			e1.printStackTrace();
-		}
-
-		sendPacket(bos.toByteArray());
-
-		logMsg("Finished transfer.");
-	}
-
 	/** Called when the activity is first created. */
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -246,13 +257,11 @@ public class SonarActivity extends Activity {
 		Button repeat_button = (Button) findViewById(R.id.repeat_button);
 		repeat_button.setOnClickListener(mClicked);
 
-		msgList = (ListView) findViewById(R.id.msgList);
 		receivedMessages = new ArrayAdapter<String>(this, R.layout.message);
-		msgList.setAdapter(receivedMessages);
-		
-		msgList2 = (ListView) findViewById(R.id.msgList2);
+		((ListView) findViewById(R.id.msgList)).setAdapter(receivedMessages);
+
 		receivedMessages2 = new ArrayAdapter<String>(this, R.layout.message);
-		msgList2.setAdapter(receivedMessages2);
+		((ListView) findViewById(R.id.msgList2)).setAdapter(receivedMessages2);
 
 		logMsg("*** Application started ***");
 

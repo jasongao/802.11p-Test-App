@@ -18,7 +18,7 @@ public class NetworkThread extends Thread {
 
 	// UDP over IPv4 networking
 	private static final int MAX_PACKET_SIZE = 1400;
-	public static final String IFACE = "wlan0";
+	public static final String IFACE = "eth0";
 	private DatagramSocket mySocket;
 	private boolean socketOK = true;
 	public InetAddress localAddress;
