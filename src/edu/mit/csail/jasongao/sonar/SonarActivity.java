@@ -194,6 +194,22 @@ public class SonarActivity extends Activity {
 					length_bytes[2], length_bytes[3] };
 			bos.write(length_pkt);
 
+			// Add RRR packet to set gaincontrol_AndroidGain
+			// (4-byte header 08100001 and 6-bit value)
+			int androidGain = 63; // TODO
+			byte[] androidGain_pkt = new byte[] { (byte) 0x08, (byte) 0x10,
+					(byte) 0x00, (byte) 0x01, (byte) 0x00, (byte) 0x00,
+					(byte) 0x00, (byte) androidGain };
+			bos.write(androidGain_pkt);
+
+			// Add RRR packet to set gaincontrol_AndroidGainEn
+			// (4-byte header 08108001 and 1-bit value)
+			int androidGainEn = 1; // TODO
+			byte[] androidGainEn_pkt = new byte[] { (byte) 0x08, (byte) 0x10,
+					(byte) 0x80, (byte) 0x01, (byte) 0x00, (byte) 0x00,
+					(byte) 0x00, (byte) androidGainEn };
+			bos.write(androidGainEn_pkt);
+
 			// Dummy data
 			/*
 			 * byte[] data_pattern = new byte[] { (byte) 0x01, (byte) 0x23,
