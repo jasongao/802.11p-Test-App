@@ -25,6 +25,7 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ListView;
 
@@ -142,12 +143,21 @@ public class SonarActivity extends Activity {
 		EditText editTextRate = (EditText) findViewById(R.id.editTextRate);
 		EditText editTextLength = (EditText) findViewById(R.id.editTextLength);
 		EditText editTextGain = (EditText) findViewById(R.id.editTextGain);
-		// EditText editTextData = (EditText) findViewById(R.id.editTextData);
+		EditText editTextAndroidGain = (EditText) findViewById(R.id.editTextAndroidGain);
+		EditText editTextAndroidGainEn = (EditText) findViewById(R.id.editTextAndroidGainEn);
+		CheckBox checkBoxUseAndroidGain = (CheckBox) findViewById(R.id.checkBoxUseAndroidGain);
 
 		// Parse and validate values from GUI
 		int rate = 1;
 		int length = 4;
 		int gain = 4;
+
+		boolean useAndroidGain = true;
+		int androidGain = 63;
+		int androidGainEn = 1;
+
+		useAndroidGain = checkBoxUseAndroidGain.isChecked();
+		
 		try {
 			length = Integer.parseInt(editTextLength.getText().toString());
 			// Restrict length to be between 4 to 4096
@@ -160,7 +170,17 @@ public class SonarActivity extends Activity {
 			rate = Math.min(7, Math.max(1, rate));
 
 			gain = Integer.parseInt(editTextGain.getText().toString());
-			// Restrict gain to be 0 to 256
+			// Restrict gain to be 0 to 255 (8-bit value)
+			rate = Math.min(255, Math.max(0, gain));
+
+			androidGain = Integer.parseInt(editTextAndroidGain.getText()
+					.toString());
+			// Restrict androidGain to be 0 to 63 (6-bit value)
+			rate = Math.min(256, Math.max(0, gain));
+
+			androidGainEn = Integer.parseInt(editTextAndroidGainEn.getText()
+					.toString());
+			// Restrict androidGainEn to be 0 to 1 (1-bit value)
 			rate = Math.min(256, Math.max(0, gain));
 		} catch (NumberFormatException e1) {
 			logMsg("INVALID NUMBER FOR LENGTH, RATE, OR GAIN!");
@@ -194,21 +214,23 @@ public class SonarActivity extends Activity {
 					length_bytes[2], length_bytes[3] };
 			bos.write(length_pkt);
 
-			// Add RRR packet to set gaincontrol_AndroidGain
-			// (4-byte header 08100001 and 6-bit value)
-			int androidGain = 63; // TODO
-			byte[] androidGain_pkt = new byte[] { (byte) 0x08, (byte) 0x10,
-					(byte) 0x00, (byte) 0x01, (byte) 0x00, (byte) 0x00,
-					(byte) 0x00, (byte) androidGain };
-			bos.write(androidGain_pkt);
+			if (useAndroidGain) {
 
-			// Add RRR packet to set gaincontrol_AndroidGainEn
-			// (4-byte header 08108001 and 1-bit value)
-			int androidGainEn = 1; // TODO
-			byte[] androidGainEn_pkt = new byte[] { (byte) 0x08, (byte) 0x10,
-					(byte) 0x80, (byte) 0x01, (byte) 0x00, (byte) 0x00,
-					(byte) 0x00, (byte) androidGainEn };
-			bos.write(androidGainEn_pkt);
+				// Add RRR packet to set gaincontrol_AndroidGain
+				// (4-byte header 08100001 and 6-bit value)
+				byte[] androidGain_pkt = new byte[] { (byte) 0x08, (byte) 0x10,
+						(byte) 0x00, (byte) 0x01, (byte) 0x00, (byte) 0x00,
+						(byte) 0x00, (byte) androidGain };
+				bos.write(androidGain_pkt);
+
+				// Add RRR packet to set gaincontrol_AndroidGainEn
+				// (4-byte header 08108001 and 1-bit value)
+				byte[] androidGainEn_pkt = new byte[] { (byte) 0x08,
+						(byte) 0x10, (byte) 0x80, (byte) 0x01, (byte) 0x00,
+						(byte) 0x00, (byte) 0x00, (byte) androidGainEn };
+				bos.write(androidGainEn_pkt);
+
+			}
 
 			// Dummy data
 			/*
