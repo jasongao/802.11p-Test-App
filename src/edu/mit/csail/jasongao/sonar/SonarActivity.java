@@ -137,28 +137,32 @@ public class SonarActivity extends Activity {
 		return new String(hexChars);
 	}
 
+	private int parseAndLimitRange(String s, int min, int max) {
+		int value = Integer.parseInt(s);
+		// Restrict rate to be 1 to 7
+		value = Math.min(max, Math.max(min, value));
+		return value;
+	}
+
 	/** Send test data */
 	private void sendData() {
 		// Get rate and length from GUI
 		EditText editTextRate = (EditText) findViewById(R.id.editTextRate);
 		EditText editTextLength = (EditText) findViewById(R.id.editTextLength);
-		EditText editTextGain = (EditText) findViewById(R.id.editTextGain);
 		EditText editTextAndroidGain = (EditText) findViewById(R.id.editTextAndroidGain);
-		EditText editTextAndroidGainEn = (EditText) findViewById(R.id.editTextAndroidGainEn);
 		CheckBox checkBoxUseAndroidGain = (CheckBox) findViewById(R.id.checkBoxUseAndroidGain);
 
 		// Parse and validate values from GUI
 		int rate = 1;
 		int length = 4;
-		int gain = 4;
 
 		boolean useAndroidGain = true;
-		int androidGain = 63;
+		int androidGain = 4;
 		int androidGainEn = 1;
 
-		useAndroidGain = checkBoxUseAndroidGain.isChecked();
-		
 		try {
+			useAndroidGain = checkBoxUseAndroidGain.isChecked();
+
 			length = Integer.parseInt(editTextLength.getText().toString());
 			// Restrict length to be between 4 to 4096
 			length = Math.min(4096, Math.max(4, length));
@@ -169,19 +173,10 @@ public class SonarActivity extends Activity {
 			// Restrict rate to be 1 to 7
 			rate = Math.min(7, Math.max(1, rate));
 
-			gain = Integer.parseInt(editTextGain.getText().toString());
-			// Restrict gain to be 0 to 255 (8-bit value)
-			rate = Math.min(255, Math.max(0, gain));
-
 			androidGain = Integer.parseInt(editTextAndroidGain.getText()
 					.toString());
 			// Restrict androidGain to be 0 to 63 (6-bit value)
-			rate = Math.min(256, Math.max(0, gain));
-
-			androidGainEn = Integer.parseInt(editTextAndroidGainEn.getText()
-					.toString());
-			// Restrict androidGainEn to be 0 to 1 (1-bit value)
-			rate = Math.min(256, Math.max(0, gain));
+			androidGain = Math.min(63, Math.max(0, androidGain));
 		} catch (NumberFormatException e1) {
 			logMsg("INVALID NUMBER FOR LENGTH, RATE, OR GAIN!");
 			return;
@@ -190,13 +185,6 @@ public class SonarActivity extends Activity {
 		// Construct UDP packet containing multiple RRR packets
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		try {
-			// Add RRR packet to set GAIN (4-byte header 080A8001 and 4-byte
-			// value)
-			byte[] gain_pkt = new byte[] { (byte) 0x08, (byte) 0x0A,
-					(byte) 0x80, (byte) 0x01, (byte) 0x00, (byte) 0x00,
-					(byte) 0x00, (byte) gain };
-			bos.write(gain_pkt);
-
 			// Add RRR packet to set RATE (4-byte header 08080001 and 4-byte
 			// value)
 			byte[] rate_pkt = new byte[] { (byte) 0x08, (byte) 0x08,
@@ -214,41 +202,29 @@ public class SonarActivity extends Activity {
 					length_bytes[2], length_bytes[3] };
 			bos.write(length_pkt);
 
-			if (useAndroidGain) {
+			androidGainEn = useAndroidGain ? 1 : 0;
 
+			// Add RRR packet to set gaincontrol_AndroidGainEn
+			// (4-byte header 08108001 and 1-bit value)
+			byte[] androidGainEn_pkt = new byte[] { (byte) 0x08, (byte) 0x10,
+					(byte) 0x80, (byte) 0x01, (byte) 0x00, (byte) 0x00,
+					(byte) 0x00, (byte) androidGainEn };
+			bos.write(androidGainEn_pkt);
+
+			if (useAndroidGain) {
 				// Add RRR packet to set gaincontrol_AndroidGain
 				// (4-byte header 08100001 and 6-bit value)
 				byte[] androidGain_pkt = new byte[] { (byte) 0x08, (byte) 0x10,
 						(byte) 0x00, (byte) 0x01, (byte) 0x00, (byte) 0x00,
 						(byte) 0x00, (byte) androidGain };
 				bos.write(androidGain_pkt);
-
-				// Add RRR packet to set gaincontrol_AndroidGainEn
-				// (4-byte header 08108001 and 1-bit value)
-				byte[] androidGainEn_pkt = new byte[] { (byte) 0x08,
-						(byte) 0x10, (byte) 0x80, (byte) 0x01, (byte) 0x00,
-						(byte) 0x00, (byte) 0x00, (byte) androidGainEn };
-				bos.write(androidGainEn_pkt);
-
 			}
-
-			// Dummy data
-			/*
-			 * byte[] data_pattern = new byte[] { (byte) 0x01, (byte) 0x23,
-			 * (byte) 0x45, (byte) 0x67, (byte) 0x89, (byte) 0xAB, (byte) 0xCD,
-			 * (byte) 0xEF }; byte[] data_payload = new byte[512]; for (int i =
-			 * 0; i < data_payload.length; i++) { data_payload[i] =
-			 * data_pattern[i % data_pattern.length]; }
-			 */
 
 			// Add RRR data packet(s), 4 bytes of data each
 			for (int i = 0; i < length / 4; i++) {
 				byte[] data_pkt = new byte[] { (byte) 0x08, (byte) 0x0A,
 						(byte) 0x00, (byte) 0x01, (byte) 0x01, (byte) 0x23,
-						(byte) 0x45, (byte) 0x67,
-				// data_payload[i + 0], data_payload[i + 1],
-				// data_payload[i + 2], data_payload[i + 3]
-				};
+						(byte) 0x45, (byte) 0x67, };
 				bos.write(data_pkt);
 			}
 		} catch (IOException e1) {

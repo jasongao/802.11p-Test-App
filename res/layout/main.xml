@@ -49,21 +49,6 @@
             android:ems="10"
             android:inputType="number"
             android:text="56" />
-
-        <TextView
-            android:id="@+id/textViewGain"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Gain" />
-
-        <EditText
-            android:id="@+id/editTextGain"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:ems="10"
-            android:inputType="number"
-            android:text="1" />
     </LinearLayout>
 
     <LinearLayout
@@ -88,27 +73,12 @@
             android:text="63" >
         </EditText>
 
-        <TextView
-            android:id="@+id/textViewAndroidGainEn"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="AndroidGainEn" />
-
-        <EditText
-            android:id="@+id/editTextAndroidGainEn"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:ems="10"
-            android:inputType="number"
-            android:text="1" />
-
         <CheckBox
             android:id="@+id/checkBoxUseAndroidGain"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:checked="true"
-            android:text="DGC" />
+            android:text="AndroidGainEn" />
     </LinearLayout>
 
     <LinearLayout
