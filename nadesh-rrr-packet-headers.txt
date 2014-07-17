@@ -1,0 +1,20 @@
+I have added the Gain Control mechanism. The final.txt in this attachment has all the latest headers required for your Android App.
+The AndroidGain is 6-bit register for direct gain control. AndroidGainEn is a single-bit register that is enabled by default.
+The rest of the Packet Generator and Checker functions remain the same. 
+
+
+PacketCheck_SendPacket 	        08000001 
+PacketCheck_GetBER 		        08008001 
+PacketCheck_SetDropPacke        08010001 
+PacketCheck_GetPacketsRX        08018001 
+PacketCheck_GetPacketsRXCorrect 08020001 
+
+PacketGen_SetRate 		        08080001 
+PacketGen_SetLength 	        08088001 
+PacketGen_SetEnable 	        08090001 
+PacketGen_SetDelay 		        08098001 
+PacketGen_SendPacket 	        080a0001 
+
+gaincontrol_AndroidGain         08100001 
+gaincontrol_AndroidGainEn        08108001 
+
