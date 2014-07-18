@@ -40,6 +40,7 @@ public class SonarActivity extends Activity {
 	private boolean currentlyRepeating = false;
 	private long packetsReceived = 0;
 	private long packetsSent = 0;
+	private boolean sendConfigPackets = false;
 
 	// UI
 	ArrayAdapter<String> receivedMessages, receivedMessages2;
@@ -185,47 +186,52 @@ public class SonarActivity extends Activity {
 		// Construct UDP packet containing multiple RRR packets
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		try {
-			// Add RRR packet to set RATE (4-byte header 08080001 and 4-byte
-			// value)
-			byte[] rate_pkt = new byte[] { (byte) 0x08, (byte) 0x08,
-					(byte) 0x00, (byte) 0x01, (byte) 0x00, (byte) 0x00,
-					(byte) 0x00, (byte) rate };
-			bos.write(rate_pkt);
+			if (sendConfigPackets) {
 
-			// Add RRR packet to set LENGTH (4-byte header 08088001 and 4-byte
-			// value)
-			ByteBuffer b = ByteBuffer.allocate(4);
-			b.putInt(length);
-			byte[] length_bytes = b.array();
-			byte[] length_pkt = new byte[] { (byte) 0x08, (byte) 0x08,
-					(byte) 0x80, (byte) 0x01, (byte) 0x00, (byte) 0x00,
-					length_bytes[2], length_bytes[3] };
-			bos.write(length_pkt);
-
-			androidGainEn = useAndroidGain ? 1 : 0;
-
-			// Add RRR packet to set gaincontrol_AndroidGainEn
-			// (4-byte header 08108001 and 1-bit value)
-			byte[] androidGainEn_pkt = new byte[] { (byte) 0x08, (byte) 0x10,
-					(byte) 0x80, (byte) 0x01, (byte) 0x00, (byte) 0x00,
-					(byte) 0x00, (byte) androidGainEn };
-			bos.write(androidGainEn_pkt);
-
-			if (useAndroidGain) {
-				// Add RRR packet to set gaincontrol_AndroidGain
-				// (4-byte header 08100001 and 6-bit value)
-				byte[] androidGain_pkt = new byte[] { (byte) 0x08, (byte) 0x10,
+				// Add RRR packet to set RATE (4-byte header 08080001 and 4-byte
+				// value)
+				byte[] rate_pkt = new byte[] { (byte) 0x08, (byte) 0x08,
 						(byte) 0x00, (byte) 0x01, (byte) 0x00, (byte) 0x00,
-						(byte) 0x00, (byte) androidGain };
-				bos.write(androidGain_pkt);
-			}
+						(byte) 0x00, (byte) rate };
+				bos.write(rate_pkt);
 
-			// Add RRR data packet(s), 4 bytes of data each
-			for (int i = 0; i < length / 4; i++) {
-				byte[] data_pkt = new byte[] { (byte) 0x08, (byte) 0x0A,
-						(byte) 0x00, (byte) 0x01, (byte) 0x01, (byte) 0x23,
-						(byte) 0x45, (byte) 0x67, };
-				bos.write(data_pkt);
+				androidGainEn = useAndroidGain ? 1 : 0;
+
+				// Add RRR packet to set gaincontrol_AndroidGainEn
+				// (4-byte header 08108001 and 1-bit value)
+				byte[] androidGainEn_pkt = new byte[] { (byte) 0x08,
+						(byte) 0x10, (byte) 0x80, (byte) 0x01, (byte) 0x00,
+						(byte) 0x00, (byte) 0x00, (byte) androidGainEn };
+				bos.write(androidGainEn_pkt);
+
+				if (useAndroidGain) {
+					// Add RRR packet to set gaincontrol_AndroidGain
+					// (4-byte header 08100001 and 6-bit value)
+					byte[] androidGain_pkt = new byte[] { (byte) 0x08,
+							(byte) 0x10, (byte) 0x00, (byte) 0x01, (byte) 0x00,
+							(byte) 0x00, (byte) 0x00, (byte) androidGain };
+					bos.write(androidGain_pkt);
+				}
+
+				sendConfigPackets = false;
+			} else {
+				// Add RRR packet to set LENGTH (4-byte header 08088001 and
+				// 4-byte value)
+				ByteBuffer b = ByteBuffer.allocate(4);
+				b.putInt(length);
+				byte[] length_bytes = b.array();
+				byte[] length_pkt = new byte[] { (byte) 0x08, (byte) 0x08,
+						(byte) 0x80, (byte) 0x01, (byte) 0x00, (byte) 0x00,
+						length_bytes[2], length_bytes[3] };
+				bos.write(length_pkt);
+
+				// Add RRR data packet(s), 4 bytes of data each
+				for (int i = 0; i < length / 4; i++) {
+					byte[] data_pkt = new byte[] { (byte) 0x08, (byte) 0x0A,
+							(byte) 0x00, (byte) 0x01, (byte) 0x01, (byte) 0x23,
+							(byte) 0x45, (byte) 0x67, };
+					bos.write(data_pkt);
+				}
 			}
 		} catch (IOException e1) {
 			logMsg("Error creating RRR packet.");
@@ -456,6 +462,10 @@ public class SonarActivity extends Activity {
 			switch (v.getId()) {
 
 			case R.id.send_button:
+				sendData();
+				break;
+			case R.id.config_button:
+				sendConfigPackets = true;
 				sendData();
 				break;
 			case R.id.repeat_button:

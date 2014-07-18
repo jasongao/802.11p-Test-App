@@ -88,10 +88,17 @@
         android:orientation="horizontal" >
 
         <Button
+            android:id="@+id/config_button"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="Send Config" >
+        </Button>
+        
+        <Button
             android:id="@+id/send_button"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:text="Send RRR Packet" >
+            android:text="Send Data" >
         </Button>
 
         <Button
