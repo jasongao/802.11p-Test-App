@@ -271,6 +271,9 @@ public class SonarActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 
+		((Button) findViewById(R.id.config_button))
+				.setOnClickListener(mClicked);
+
 		Button send_button = (Button) findViewById(R.id.send_button);
 		send_button.setOnClickListener(mClicked);
 
