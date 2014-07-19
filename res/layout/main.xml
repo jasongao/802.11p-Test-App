@@ -49,6 +49,13 @@
             android:ems="10"
             android:inputType="number"
             android:text="56" />
+        
+        <CheckBox
+            android:id="@+id/checkBoxSetEnable"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="SetEnable" />
     </LinearLayout>
 
     <LinearLayout

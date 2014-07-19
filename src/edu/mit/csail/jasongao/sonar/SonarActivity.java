@@ -152,17 +152,20 @@ public class SonarActivity extends Activity {
 		EditText editTextLength = (EditText) findViewById(R.id.editTextLength);
 		EditText editTextAndroidGain = (EditText) findViewById(R.id.editTextAndroidGain);
 		CheckBox checkBoxUseAndroidGain = (CheckBox) findViewById(R.id.checkBoxUseAndroidGain);
+		CheckBox checkBoxSetEnable = (CheckBox) findViewById(R.id.checkBoxSetEnable);
 
 		// Parse and validate values from GUI
 		int rate = 1;
 		int length = 4;
 
 		boolean useAndroidGain = true;
+		boolean setEnable = true;
 		int androidGain = 4;
 		int androidGainEn = 1;
 
 		try {
 			useAndroidGain = checkBoxUseAndroidGain.isChecked();
+			setEnable = checkBoxSetEnable.isChecked();
 
 			length = Integer.parseInt(editTextLength.getText().toString());
 			// Restrict length to be between 4 to 4096
@@ -187,9 +190,15 @@ public class SonarActivity extends Activity {
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		try {
 			if (sendConfigPackets) {
+				// Add RRR packet for PacketGen_SetEnable
+				// (4-byte header 08090001 and 1-bit value)
+				byte[] setEnable_pkt = new byte[] { (byte) 0x08, (byte) 0x09,
+						(byte) 0x00, (byte) 0x01, (byte) 0x00, (byte) 0x00,
+						(byte) 0x00, (byte) (setEnable ? 0x01 : 0x00) };
+				bos.write(setEnable_pkt);
 
-				// Add RRR packet to set RATE (4-byte header 08080001 and 4-byte
-				// value)
+				// Add RRR packet for PacketGen_SetRate
+				// (4-byte header 08080001 and 4-byte value)
 				byte[] rate_pkt = new byte[] { (byte) 0x08, (byte) 0x08,
 						(byte) 0x00, (byte) 0x01, (byte) 0x00, (byte) 0x00,
 						(byte) 0x00, (byte) rate };
@@ -215,8 +224,8 @@ public class SonarActivity extends Activity {
 
 				sendConfigPackets = false;
 			} else {
-				// Add RRR packet to set LENGTH (4-byte header 08088001 and
-				// 4-byte value)
+				// Add RRR packet for PacketGen_SetLength
+				// (4-byte header 08088001 and 4-byte value)
 				ByteBuffer b = ByteBuffer.allocate(4);
 				b.putInt(length);
 				byte[] length_bytes = b.array();
@@ -225,7 +234,8 @@ public class SonarActivity extends Activity {
 						length_bytes[2], length_bytes[3] };
 				bos.write(length_pkt);
 
-				// Add RRR data packet(s), 4 bytes of data each
+				// Add RRR data packet(s) for PacketGen_SendPacket
+				// (4-byte header 080a0001 and 4-byte value)
 				for (int i = 0; i < length / 4; i++) {
 					byte[] data_pkt = new byte[] { (byte) 0x08, (byte) 0x0A,
 							(byte) 0x00, (byte) 0x01, (byte) 0x01, (byte) 0x23,
