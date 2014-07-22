@@ -41,6 +41,7 @@ public class SonarActivity extends Activity {
 	private long packetsReceived = 0;
 	private long packetsSent = 0;
 	private boolean sendConfigPackets = false;
+	private boolean sendGetFifoCountPacket = false;
 
 	// UI
 	ArrayAdapter<String> receivedMessages, receivedMessages2;
@@ -189,7 +190,22 @@ public class SonarActivity extends Activity {
 		// Construct UDP packet containing multiple RRR packets
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		try {
-			if (sendConfigPackets) {
+			if (sendGetFifoCountPacket) {
+				// Add RRR packet for PacketGen_GetCount
+				// (4-byte header 080a8001 and any 4-byte value)
+				bos.write(new byte[] { (byte) 0x08, (byte) 0x0a, (byte) 0x80,
+						(byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00,
+						(byte) 0x00 });
+
+				// Add some padding so packet is big enough for the FPGA
+				// Ethernet parser
+				for (int i = 0; i < 6; i++) {
+					bos.write(new byte[] { (byte) 0x00, (byte) 0x00,
+							(byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
+							(byte) 0x00, (byte) 0x00 });
+				}
+				sendGetFifoCountPacket = false;
+			} else if (sendConfigPackets) {
 				// Add RRR packet for PacketGen_SetEnable
 				// (4-byte header 08090001 and 1-bit value)
 				byte[] setEnable_pkt = new byte[] { (byte) 0x08, (byte) 0x09,
@@ -284,7 +300,7 @@ public class SonarActivity extends Activity {
 		((Button) findViewById(R.id.config_button))
 				.setOnClickListener(mClicked);
 
-		Button send_button = (Button) findViewById(R.id.send_button);
+		Button send_button = (Button) findViewById(R.id.data_button);
 		send_button.setOnClickListener(mClicked);
 
 		Button repeat_button = (Button) findViewById(R.id.repeat_button);
@@ -474,11 +490,19 @@ public class SonarActivity extends Activity {
 		public void onClick(View v) {
 			switch (v.getId()) {
 
-			case R.id.send_button:
+			case R.id.data_button:
+				sendConfigPackets = false;
+				sendGetFifoCountPacket = false;
 				sendData();
 				break;
 			case R.id.config_button:
 				sendConfigPackets = true;
+				sendGetFifoCountPacket = false;
+				sendData();
+				break;
+			case R.id.fifo_button:
+				sendConfigPackets = false;
+				sendGetFifoCountPacket = true;
 				sendData();
 				break;
 			case R.id.repeat_button:
