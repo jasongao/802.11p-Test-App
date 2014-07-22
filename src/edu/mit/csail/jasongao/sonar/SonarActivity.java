@@ -191,18 +191,13 @@ public class SonarActivity extends Activity {
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
 		try {
 			if (sendGetFifoCountPacket) {
-				// Add RRR packet for PacketGen_GetCount
-				// (4-byte header 080a8001 and any 4-byte value)
-				bos.write(new byte[] { (byte) 0x08, (byte) 0x0a, (byte) 0x80,
-						(byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00,
-						(byte) 0x00 });
-
-				// Add some padding so packet is big enough for the FPGA
-				// Ethernet parser
-				for (int i = 0; i < 6; i++) {
-					bos.write(new byte[] { (byte) 0x00, (byte) 0x00,
-							(byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
-							(byte) 0x00, (byte) 0x00 });
+				// Send several, FPGA Ethernet stack has a min size limitation
+				for (int i = 0; i < 7; i++) {
+					// Add RRR packet for PacketGen_GetCount
+					// (4-byte header 080a8001 and any 4-byte value)
+					bos.write(new byte[] { (byte) 0x08, (byte) 0x0a, (byte) 0x80,
+							(byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00,
+							(byte) 0x00 });
 				}
 				sendGetFifoCountPacket = false;
 			} else if (sendConfigPackets) {
