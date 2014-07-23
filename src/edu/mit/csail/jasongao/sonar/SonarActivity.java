@@ -195,9 +195,9 @@ public class SonarActivity extends Activity {
 				for (int i = 0; i < 7; i++) {
 					// Add RRR packet for PacketGen_GetCount
 					// (4-byte header 080a8001 and any 4-byte value)
-					bos.write(new byte[] { (byte) 0x08, (byte) 0x0a, (byte) 0x80,
-							(byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00,
-							(byte) 0x00 });
+					bos.write(new byte[] { (byte) 0x08, (byte) 0x0a,
+							(byte) 0x80, (byte) 0x01, (byte) 0x00, (byte) 0x00,
+							(byte) 0x00, (byte) 0x00 });
 				}
 				sendGetFifoCountPacket = false;
 			} else if (sendConfigPackets) {
@@ -294,6 +294,8 @@ public class SonarActivity extends Activity {
 
 		((Button) findViewById(R.id.config_button))
 				.setOnClickListener(mClicked);
+
+		((Button) findViewById(R.id.fifo_button)).setOnClickListener(mClicked);
 
 		Button send_button = (Button) findViewById(R.id.data_button);
 		send_button.setOnClickListener(mClicked);
