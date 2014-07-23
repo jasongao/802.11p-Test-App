@@ -152,12 +152,14 @@ public class SonarActivity extends Activity {
 		EditText editTextRate = (EditText) findViewById(R.id.editTextRate);
 		EditText editTextLength = (EditText) findViewById(R.id.editTextLength);
 		EditText editTextAndroidGain = (EditText) findViewById(R.id.editTextAndroidGain);
+		EditText editTextDataPackets = (EditText) findViewById(R.id.editTextDataPackets);
 		CheckBox checkBoxUseAndroidGain = (CheckBox) findViewById(R.id.checkBoxUseAndroidGain);
 		CheckBox checkBoxSetEnable = (CheckBox) findViewById(R.id.checkBoxSetEnable);
 
 		// Parse and validate values from GUI
 		int rate = 1;
-		int length = 4;
+		int length = 64;
+		int dataPackets = 16; 
 
 		boolean useAndroidGain = true;
 		boolean setEnable = true;
@@ -167,12 +169,16 @@ public class SonarActivity extends Activity {
 		try {
 			useAndroidGain = checkBoxUseAndroidGain.isChecked();
 			setEnable = checkBoxSetEnable.isChecked();
+			
+			dataPackets = Integer.parseInt(editTextDataPackets.getText().toString());
+			// Restrict length to be between 1 to 1024
+			dataPackets = Math.min(1024, Math.max(1, dataPackets));
 
 			length = Integer.parseInt(editTextLength.getText().toString());
 			// Restrict length to be between 4 to 4096
 			length = Math.min(4096, Math.max(4, length));
 			// Restrict length to be a multiple of 4
-			length -= (length % 4);
+			// length -= (length % 4);
 
 			rate = Integer.parseInt(editTextRate.getText().toString());
 			// Restrict rate to be 1 to 7
@@ -253,6 +259,12 @@ public class SonarActivity extends Activity {
 							(byte) 0x45, (byte) 0x67, };
 					bos.write(data_pkt);
 				}
+
+				// Add RRR packet for PacketGen_GetCount
+				// (4-byte header 080a8001 and any 4-byte value)
+				bos.write(new byte[] { (byte) 0x08, (byte) 0x0a, (byte) 0x80,
+						(byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00,
+						(byte) 0x00 });
 			}
 		} catch (IOException e1) {
 			logMsg("Error creating RRR packet.");

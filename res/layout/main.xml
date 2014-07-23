@@ -48,7 +48,22 @@
             android:layout_weight="1"
             android:ems="10"
             android:inputType="number"
-            android:text="56" />
+            android:text="64" />
+        
+        <TextView
+            android:id="@+id/textViewDataPackets"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="DataPackets" />
+
+        <EditText
+            android:id="@+id/editTextDataPackets"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ems="10"
+            android:inputType="number"
+            android:text="16" />
         
         <CheckBox
             android:id="@+id/checkBoxSetEnable"
