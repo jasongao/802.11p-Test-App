@@ -159,7 +159,7 @@ public class SonarActivity extends Activity {
 		// Parse and validate values from GUI
 		int rate = 1;
 		int length = 64;
-		int dataPackets = 16; 
+		int dataPackets = 16;
 
 		boolean useAndroidGain = true;
 		boolean setEnable = true;
@@ -169,25 +169,30 @@ public class SonarActivity extends Activity {
 		try {
 			useAndroidGain = checkBoxUseAndroidGain.isChecked();
 			setEnable = checkBoxSetEnable.isChecked();
-			
-			dataPackets = Integer.parseInt(editTextDataPackets.getText().toString());
+
+			dataPackets = Integer.parseInt(editTextDataPackets.getText()
+					.toString());
 			// Restrict length to be between 1 to 1024
 			dataPackets = Math.min(1024, Math.max(1, dataPackets));
+			editTextDataPackets.setText(dataPackets);
 
 			length = Integer.parseInt(editTextLength.getText().toString());
 			// Restrict length to be between 4 to 4096
 			length = Math.min(4096, Math.max(4, length));
 			// Restrict length to be a multiple of 4
 			// length -= (length % 4);
+			editTextLength.setText(length);
 
 			rate = Integer.parseInt(editTextRate.getText().toString());
 			// Restrict rate to be 1 to 7
 			rate = Math.min(7, Math.max(1, rate));
+			editTextRate.setText(rate);
 
 			androidGain = Integer.parseInt(editTextAndroidGain.getText()
 					.toString());
 			// Restrict androidGain to be 0 to 63 (6-bit value)
 			androidGain = Math.min(63, Math.max(0, androidGain));
+			editTextAndroidGain.setText(androidGain);
 		} catch (NumberFormatException e1) {
 			logMsg("INVALID NUMBER FOR LENGTH, RATE, OR GAIN!");
 			return;
