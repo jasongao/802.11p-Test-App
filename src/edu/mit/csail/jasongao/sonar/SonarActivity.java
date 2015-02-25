@@ -70,7 +70,7 @@ public class SonarActivity extends Activity {
 			switch (msg.what) {
 			case PACKET_RECV:
 				byte[] pingBytes = (byte[]) msg.obj;
-				logMsg2(String.format(
+				logMsg(receivedMessages2, String.format(
 						"Received packet %d of size %d, data: %s",
 						packetsReceived, pingBytes.length,
 						bytesToHex(pingBytes)));
@@ -78,31 +78,36 @@ public class SonarActivity extends Activity {
 				break;
 			case CAPTURE_RECV:
 				String capLine = (String) msg.obj;
-				logMsg2(capLine);
+				logMsg(receivedMessages2, capLine);
 				break;
 			case LOG: // Write a string to log file and UI log display
-				logMsg((String) msg.obj);
+				logMsg(receivedMessages, (String) msg.obj);
 				break;
 			}
 		}
 	};
 
-	/** Log message and also display on screen */
-	public void logMsg(String line) {
-		line = String.format("%d: %s", System.currentTimeMillis(), line);
-		Log.i(TAG, line);
-		receivedMessages.add((String) line);
-		if (logWriter != null) {
-			logWriter.println((String) line);
-		}
-	}
+	private final boolean LOGCAT_WRITE = false;
+	private final boolean TEXTLOG_WRITE = false;
+	private final boolean LISTVIEW_LIMIT = true;
+	private final long LISTVIEW_LIMIT_COUNT = 200;
 
-	/** Log message and also display on secondary list */
-	public void logMsg2(String line) {
+	/** Log message and also display on screen */
+	public void logMsg(ArrayAdapter<String> adapter, String line) {
 		line = String.format("%d: %s", System.currentTimeMillis(), line);
-		Log.i(TAG, line);
-		receivedMessages2.add((String) line);
-		if (logWriter != null) {
+
+		// limit maximum size of adapter
+		if (LISTVIEW_LIMIT && adapter.getCount() > LISTVIEW_LIMIT_COUNT) {
+			adapter.remove(adapter.getItem(0));
+		}
+
+		adapter.add((String) line);
+
+		if (LOGCAT_WRITE) {
+			Log.i(TAG, line);
+		}
+
+		if (TEXTLOG_WRITE && logWriter != null) {
 			logWriter.println((String) line);
 		}
 	}
@@ -110,14 +115,26 @@ public class SonarActivity extends Activity {
 	/** Periodically repeating packet send */
 	private Runnable repeatingPacketR = new Runnable() {
 		public void run() {
-			myHandler.postDelayed(this, 1);
+			myHandler.postDelayed(this, packetDelay);
 			for (int i = 0; i < 10; i++) {
 				sendData();
 			}
 		}
 	};
+	
+	int packetDelay = 1;
 
 	private void repeatingPacketStart() {
+		EditText editTextPacketDelay = (EditText) findViewById(R.id.editTextPacketDelay);
+		CheckBox checkBoxUsePacketDelay = (CheckBox) findViewById(R.id.checkBoxUsePacketDelay);
+		
+		if (checkBoxUsePacketDelay.isChecked()) {
+			packetDelay = parseAndLimitRange(editTextPacketDelay.getText().toString(), 1, 10000);
+			editTextPacketDelay.setText(Integer.toString(packetDelay));
+		} else {
+			packetDelay = 1;
+		}
+		
 		myHandler.post(repeatingPacketR);
 	}
 
@@ -141,7 +158,6 @@ public class SonarActivity extends Activity {
 
 	private int parseAndLimitRange(String s, int min, int max) {
 		int value = Integer.parseInt(s);
-		// Restrict rate to be 1 to 7
 		value = Math.min(max, Math.max(min, value));
 		return value;
 	}
@@ -149,6 +165,8 @@ public class SonarActivity extends Activity {
 	/** Send test data */
 	private void sendData() {
 		// Get rate and length from GUI
+		// TODO should eventually move this to onCreate, but while prototyping
+		// keep it here just for ease of reading
 		EditText editTextRate = (EditText) findViewById(R.id.editTextRate);
 		EditText editTextLength = (EditText) findViewById(R.id.editTextLength);
 		EditText editTextAndroidGain = (EditText) findViewById(R.id.editTextAndroidGain);
@@ -194,7 +212,8 @@ public class SonarActivity extends Activity {
 			androidGain = Math.min(63, Math.max(0, androidGain));
 			editTextAndroidGain.setText(Integer.toString(androidGain));
 		} catch (NumberFormatException e1) {
-			logMsg("INVALID NUMBER FOR LENGTH, RATE, OR GAIN!");
+			logMsg(receivedMessages,
+					"INVALID NUMBER FOR LENGTH, RATE, GAIN, OR DELAY!");
 			return;
 		}
 
@@ -267,12 +286,12 @@ public class SonarActivity extends Activity {
 
 				// Add RRR packet for PacketGen_GetCount
 				// (4-byte header 080a8001 and any 4-byte value)
-				//bos.write(new byte[] { (byte) 0x08, (byte) 0x0a, (byte) 0x80,
-				//		(byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00,
-				//		(byte) 0x00 });
+				// bos.write(new byte[] { (byte) 0x08, (byte) 0x0a, (byte) 0x80,
+				// (byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00,
+				// (byte) 0x00 });
 			}
 		} catch (IOException e1) {
-			logMsg("Error creating RRR packet.");
+			logMsg(receivedMessages, "Error creating RRR packet.");
 			e1.printStackTrace();
 		}
 
@@ -290,12 +309,14 @@ public class SonarActivity extends Activity {
 		// Send packet
 		try {
 			netThread.broadcast(padded_packet);
-			logMsg(String.format("Sent packet %d of size %d bytes",
-					packetsSent, packet.length));
+			logMsg(receivedMessages, String.format(
+					"Sent packet %d of size %d bytes", packetsSent,
+					packet.length));
 			packetsSent++;
 		} catch (IOException e) {
-			logMsg(String.format("Error sending packet %d of size %d bytes",
-					packetsSent, packet.length));
+			logMsg(receivedMessages, String.format(
+					"Error sending packet %d of size %d bytes", packetsSent,
+					packet.length));
 			e.printStackTrace();
 			return false;
 		}
@@ -326,7 +347,7 @@ public class SonarActivity extends Activity {
 		receivedMessages2 = new ArrayAdapter<String>(this, R.layout.message);
 		((ListView) findViewById(R.id.msgList2)).setAdapter(receivedMessages2);
 
-		logMsg("*** Application started ***");
+		logMsg(receivedMessages, "*** Application started ***");
 
 		StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder()
 				.permitAll().build());
@@ -339,10 +360,11 @@ public class SonarActivity extends Activity {
 					String.format("sonar-%d.txt", System.currentTimeMillis()));
 			try {
 				logWriter = new PrintWriter(logFile);
-				logMsg("*** Opened log file for writing ***");
+				logMsg(receivedMessages, "*** Opened log file for writing ***");
 			} catch (Exception e) {
 				logWriter = null;
-				logMsg("*** Couldn't open log file for writing ***");
+				logMsg(receivedMessages,
+						"*** Couldn't open log file for writing ***");
 			}
 		} else if (Environment.MEDIA_MOUNTED_READ_ONLY.equals(state)) {
 			// We can only read the media
@@ -367,7 +389,8 @@ public class SonarActivity extends Activity {
 		// Extract binaries
 		File localTcpdump = getFileStreamPath(TCPDUMP);
 		if (localTcpdump.exists()) {
-			logMsg("binary already exists at " + getFileStreamPath(TCPDUMP));
+			logMsg(receivedMessages, "binary already exists at "
+					+ getFileStreamPath(TCPDUMP));
 		} else {
 			extractBinary(R.raw.tcpdump, TCPDUMP);
 		}
@@ -384,8 +407,9 @@ public class SonarActivity extends Activity {
 			return; // quit out
 		}
 
-		logMsg("localAddress=" + netThread.localAddress.getHostAddress());
-		logMsg("broadcastAddress="
+		logMsg(receivedMessages,
+				"localAddress=" + netThread.localAddress.getHostAddress());
+		logMsg(receivedMessages, "broadcastAddress="
 				+ netThread.broadcastAddress.getHostAddress());
 
 		startTcpdump();
@@ -493,8 +517,9 @@ public class SonarActivity extends Activity {
 			if (!success) {
 				getFileStreamPath(fileName).delete();
 			} else {
-				logMsg("successfully extracted executable to "
-						+ getFileStreamPath(fileName));
+				logMsg(receivedMessages,
+						"successfully extracted executable to "
+								+ getFileStreamPath(fileName));
 			}
 		}
 	}

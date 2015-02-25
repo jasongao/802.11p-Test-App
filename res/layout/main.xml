@@ -102,6 +102,35 @@
             android:checked="true"
             android:text="AndroidGainEn" />
     </LinearLayout>
+    
+    <LinearLayout
+        android:id="@+id/PacketDelayLayout"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal" >
+
+        <TextView
+            android:id="@+id/textView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PacketDelayInLoop" />
+
+        <EditText
+            android:id="@+id/editTextPacketDelay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ems="10"
+            android:inputType="number"
+            android:text="0" />
+
+        <CheckBox
+            android:id="@+id/checkBoxUsePacketDelay"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="Use PacketDelay" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/ButtonsLayout2"
