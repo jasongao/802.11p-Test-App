@@ -408,6 +408,8 @@ public class SonarActivity extends Activity {
 		}
 
 		logMsg(receivedMessages,
+				"iface=" + NetworkThread.IFACE);
+		logMsg(receivedMessages,
 				"localAddress=" + netThread.localAddress.getHostAddress());
 		logMsg(receivedMessages, "broadcastAddress="
 				+ netThread.broadcastAddress.getHostAddress());
