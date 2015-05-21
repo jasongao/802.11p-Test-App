@@ -286,9 +286,9 @@ public class SonarActivity extends Activity {
 
 				// Add RRR packet for PacketGen_GetCount
 				// (4-byte header 080a8001 and any 4-byte value)
-				// bos.write(new byte[] { (byte) 0x08, (byte) 0x0a, (byte) 0x80,
-				// (byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00,
-				// (byte) 0x00 });
+				bos.write(new byte[] { (byte) 0x08, (byte) 0x0a, (byte) 0x80,
+				(byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00,
+				(byte) 0x00 });
 			}
 		} catch (IOException e1) {
 			logMsg(receivedMessages, "Error creating RRR packet.");
